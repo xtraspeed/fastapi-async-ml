@@ -1,5 +1,5 @@
-from typing import Any, Optional
-from pydantic import BaseModel, Field
+from typing import Any, Optional, Union
+from pydantic import BaseModel, Field, field_validator
 
 
 class PredictionRequest(BaseModel):
@@ -14,6 +14,14 @@ class PredictionRequest(BaseModel):
         default=None,
         description="Optional client metadata (e.g., user_id, source, document_id).",
     )
+
+    @field_validator("text")
+    @classmethod
+    def _normalize_text(cls, value: str) -> str:
+        stripped = value.strip()
+        if len(stripped) < 2:
+            raise ValueError("text must contain at least 2 non-whitespace characters")
+        return stripped
 
 
 class BatchPredictionRequest(BaseModel):
@@ -60,10 +68,26 @@ class TaskResponse(BaseModel):
     result: Optional[PredictionResult] = None
 
 
+class BatchResult(BaseModel):
+    batch_id: str
+    total_processed: int = Field(..., ge=0)
+    cached_items: int = Field(default=0, ge=0, description="Items served from the Redis idempotency cache.")
+    results: list[PredictionResult] = Field(default_factory=list)
+
+
+class BatchTaskEntry(BaseModel):
+    task_id: str
+    status: str
+    check_status_url: str
+
+
 class BatchTaskResponse(BaseModel):
     batch_id: str
     total_items: int
-    tasks: list[dict[str, Any]]
+    tasks: list[BatchTaskEntry]
+
+
+TaskResult = Union[PredictionResult, BatchResult]
 
 
 class TaskStatusResponse(BaseModel):
@@ -71,7 +95,7 @@ class TaskStatusResponse(BaseModel):
     status: str
     progress: int = Field(default=0, ge=0, le=100)
     stage: Optional[str] = None
-    result: Optional[PredictionResult] = None
+    result: Optional[TaskResult] = None
     error: Optional[str] = None
 
 

@@ -20,6 +20,12 @@ try:
         CELERY_TASK_TIMEOUT: int = 300
         MODEL_ARTIFACT_PATH: str = os.getenv("MODEL_ARTIFACT_PATH", "app/models/model_artifacts.joblib")
 
+        # Fail-fast tuning: the API must return 503 quickly when the broker or
+        # result store is unreachable, instead of blocking the HTTP request
+        # inside Celery's default connection/retry loops.
+        BROKER_CONNECTION_TIMEOUT: float = 3.0
+        REDIS_SOCKET_TIMEOUT: float = 3.0
+
         model_config = SettingsConfigDict(
             env_file=".env",
             env_file_encoding="utf-8",
@@ -40,6 +46,8 @@ except ImportError:
         CACHE_TTL_SECONDS: int = int(os.getenv("CACHE_TTL_SECONDS", "3600"))
         CELERY_TASK_TIMEOUT: int = int(os.getenv("CELERY_TASK_TIMEOUT", "300"))
         MODEL_ARTIFACT_PATH: str = os.getenv("MODEL_ARTIFACT_PATH", "app/models/model_artifacts.joblib")
+        BROKER_CONNECTION_TIMEOUT: float = float(os.getenv("BROKER_CONNECTION_TIMEOUT", "3.0"))
+        REDIS_SOCKET_TIMEOUT: float = float(os.getenv("REDIS_SOCKET_TIMEOUT", "3.0"))
 
 
 settings = Settings()

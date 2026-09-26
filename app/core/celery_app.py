@@ -27,6 +27,26 @@ try:
             "app.workers.tasks.analyze_text_task": {"queue": "ml_inference_queue"},
             "app.workers.tasks.batch_analyze_text_task": {"queue": "ml_batch_queue"},
         },
+        # Fail fast on unavailable infrastructure so a publish attempt surfaces an
+        # exception (and therefore a 503) instead of blocking the request inside
+        # Celery's default broker/backend retry loops.
+        broker_transport_options={
+            "max_retries": 0,
+            "socket_timeout": settings.BROKER_CONNECTION_TIMEOUT,
+            "socket_connect_timeout": settings.BROKER_CONNECTION_TIMEOUT,
+        },
+        broker_connection_retry_on_startup=True,
+        broker_connection_max_retries=0,
+        result_backend_always_retry=False,
+        # The Redis backend retries failed store/get operations 20 times by
+        # default (~100s of blocking). Publishing must fail fast so the API can
+        # return 503 instead of holding the HTTP request open.
+        result_backend_transport_options={
+            "retry_policy": {"max_retries": 0},
+        },
+        redis_socket_timeout=settings.REDIS_SOCKET_TIMEOUT,
+        redis_socket_connect_timeout=settings.REDIS_SOCKET_TIMEOUT,
+        redis_retry_on_timeout=False,
     )
 
     def check_rabbitmq_health() -> bool:
@@ -57,6 +77,7 @@ except ImportError:
                 class _TaskWrapper:
                     def __init__(self, f):
                         self.f = f
+                        self.max_retries = kwargs.get("max_retries", 0)
                         self.request = type("Req", (), {"id": "mock-task-id", "retries": 0})()
 
                     def delay(self, *a, **k):
